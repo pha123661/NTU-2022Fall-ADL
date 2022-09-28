@@ -57,7 +57,7 @@ end
 # Unset irrelevant variables.
 deactivate nondestructive
 
-set -gx VIRTUAL_ENV '/disks/local/l.h2t_1/r11944004/.venv_ADL'
+set -gx VIRTUAL_ENV '/disks/local/l.h2t_1/r11944004/NTU-2022Fall-ADL/.venv_ADL'
 
 # https://github.com/fish-shell/fish-shell/issues/436 altered PATH handling
 if test (echo $FISH_VERSION | head -c 1) -lt 3
