@@ -1,13 +1,18 @@
 import json
 import pickle
 from argparse import ArgumentParser, Namespace
+from cProfile import label
 from pathlib import Path
 from typing import Dict
 
 import torch
-from tqdm import trange
+import torch.nn as nn
+from sklearn.metrics import accuracy_score
+from torch.utils.data import DataLoader
+from tqdm import tqdm, trange
 
 from dataset import SeqClsDataset
+from model import SeqClassifier
 from utils import Vocab
 
 TRAIN = "train"
@@ -23,27 +28,73 @@ def main(args):
     intent2idx: Dict[str, int] = json.loads(intent_idx_path.read_text())
 
     data_paths = {split: args.data_dir / f"{split}.json" for split in SPLITS}
-    data = {split: json.loads(path.read_text()) for split, path in data_paths.items()}
+    data = {split: json.loads(path.read_text())
+            for split, path in data_paths.items()}
     datasets: Dict[str, SeqClsDataset] = {
-        split: SeqClsDataset(split_data, vocab, intent2idx, args.max_len)
+        split: SeqClsDataset(split_data, vocab, intent2idx,
+                             args.max_len, train=True)
         for split, split_data in data.items()
     }
-    # TODO: crecate DataLoader for train / dev datasets
+    train_loader = DataLoader(
+        datasets['train'], batch_size=args.batch_size, shuffle=True, num_workers=6, collate_fn=datasets['train'].collate_fn)
+    valid_loader = DataLoader(
+        datasets['eval'], batch_size=args.batch_size, shuffle=False, num_workers=6, collate_fn=datasets['eval'].collate_fn)
 
     embeddings = torch.load(args.cache_dir / "embeddings.pt")
-    # TODO: init model and move model to target device(cpu / gpu)
-    model = None
 
-    # TODO: init optimizer
-    optimizer = None
+    model = SeqClassifier(
+        embeddings=embeddings,
+        hidden_size=args.hidden_size,
+        num_layers=args.num_layers,
+        dropout=args.dropout,
+        bidirectional=args.bidirectional,
+        num_class=len(intent2idx),
+    ).to(args.device)
+    model.train()
 
-    epoch_pbar = trange(args.num_epoch, desc="Epoch")
-    for epoch in epoch_pbar:
-        # TODO: Training loop - iterate over train dataloader and update model weights
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+
+    best_acc = 10e10
+    for epoch in range(1, args.num_epoch + 1):
+        # Training loop - iterate over train dataloader and update model weights
+        train_losses = []
+        for x, lengths, labels in tqdm(train_loader):
+            x, labels = x.to(args.device, non_blocking=True), labels.to(
+                args.device, non_blocking=True)
+            logits = model(x, lengths)
+            loss = loss_fn(logits, labels)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            train_losses.append(loss.item())
+
+        print(
+            f'Epoch {epoch}: train loss: {sum(train_losses)/len(train_losses)}')
         # TODO: Evaluation loop - calculate accuracy and save model weights
-        pass
+        va_accs = []
+        va_losses = []
+        model.eval()
+        with torch.no_grad():
+            for x, lengths, labels in tqdm(valid_loader):
+                x, labels = x.to(args.device), labels.to(args.device)
+                logits = model(x, lengths)
+                loss = loss_fn(logits, labels)
+                pred = logits.argmax(dim=1)
 
-    # TODO: Inference on test set
+                va_accs.append(accuracy_score(
+                    labels.detach().cpu().numpy(), pred.detach().cpu().numpy()))
+                va_losses.append(loss.item())
+        model.train()
+        va_acc = sum(va_accs) / len(va_accs)
+        print(
+            f'Epoch {epoch}: valid acc: {va_acc} valid loss: {sum(train_losses)/len(train_losses)}')
+        if va_acc > best_acc:
+            best_acc = va_acc
+            torch.save(model.state_dict(), args.ckpt_dir / 'best_model.pth')
+            print('saved model! acc =', va_acc)
+
+    print('best_acc:', best_acc)
 
 
 def parse_args() -> Namespace:
@@ -84,7 +135,7 @@ def parse_args() -> Namespace:
 
     # training
     parser.add_argument(
-        "--device", type=torch.device, help="cpu, cuda, cuda:0, cuda:1", default="cpu"
+        "--device", type=torch.device, help="cpu, cuda, cuda:0, cuda:1", default="cuda"
     )
     parser.add_argument("--num_epoch", type=int, default=100)
 
