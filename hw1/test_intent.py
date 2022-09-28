@@ -1,3 +1,4 @@
+import csv
 import json
 import pickle
 from argparse import ArgumentParser, Namespace
@@ -5,6 +6,7 @@ from pathlib import Path
 from typing import Dict
 
 import torch
+from torch.utils.data import DataLoader
 
 from dataset import SeqClsDataset
 from model import SeqClassifier
@@ -19,8 +21,10 @@ def main(args):
     intent2idx: Dict[str, int] = json.loads(intent_idx_path.read_text())
 
     data = json.loads(args.test_file.read_text())
-    dataset = SeqClsDataset(data, vocab, intent2idx, args.max_len)
-    # TODO: crecate DataLoader for test dataset
+    dataset = SeqClsDataset(data, vocab, intent2idx, args.max_len, train=False)
+
+    test_loader = DataLoader(dataset, args.batch_size,
+                             shuffle=False, collate_fn=dataset.collate_fn, num_workers=6)
 
     embeddings = torch.load(args.cache_dir / "embeddings.pt")
 
@@ -31,15 +35,29 @@ def main(args):
         args.dropout,
         args.bidirectional,
         dataset.num_classes,
-    )
+    ).to(args.device)
     model.eval()
 
-    ckpt = torch.load(args.ckpt_path)
     # load weights into model
+    model.load_state_dict(torch.load(args.ckpt_path))
+    # predict dataset
+    all_ids = []
+    all_preds = []
+    with torch.no_grad():
+        for x, lengths, ids in test_loader:
+            x = x.to(args.device, non_blocking=True)
+            all_ids.extend(ids)
+            logits = model(x, lengths)
+            preds = logits.argmax(dim=1).cpu().tolist()
+            preds = [dataset.idx2label(p) for p in preds]
+            all_preds.extend(preds)
 
-    # TODO: predict dataset
-
-    # TODO: write prediction to file (args.pred_file)
+    # write prediction to file (args.pred_file)
+    with open(args.pred_file, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(('id', 'intent'))
+        for data in zip(all_ids, all_preds):
+            writer.writerow(data)
 
 
 def parse_args() -> Namespace:
@@ -60,7 +78,7 @@ def parse_args() -> Namespace:
         "--ckpt_path",
         type=Path,
         help="Path to model checkpoint.",
-        required=True
+        default="./ckpt/intent/best_model.pth",
     )
     parser.add_argument("--pred_file", type=Path, default="pred.intent.csv")
 
@@ -77,7 +95,7 @@ def parse_args() -> Namespace:
     parser.add_argument("--batch_size", type=int, default=128)
 
     parser.add_argument(
-        "--device", type=torch.device, help="cpu, cuda, cuda:0, cuda:1", default="cpu"
+        "--device", type=torch.device, help="cpu, cuda, cuda:0, cuda:1", default="cuda"
     )
     args = parser.parse_args()
     return args

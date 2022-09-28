@@ -55,7 +55,7 @@ class SeqClsDataset(Dataset):
             return text[sorted_idx], length[sorted_idx], labels[sorted_idx]
         else:
             ids = np.array([ex['id'] for ex in samples])
-            sorted_idx = torch.argsort(length)
+            sorted_idx = torch.argsort(length, descending=True)
             return text[sorted_idx], length[sorted_idx], ids[sorted_idx.cpu().numpy()]
 
     def label2idx(self, label: str):

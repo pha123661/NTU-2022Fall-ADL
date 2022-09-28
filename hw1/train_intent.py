@@ -55,7 +55,7 @@ def main(args):
     loss_fn = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
-    best_acc = 10e10
+    best_acc = -1
     for epoch in range(1, args.num_epoch + 1):
         # Training loop - iterate over train dataloader and update model weights
         train_losses = []
@@ -92,6 +92,8 @@ def main(args):
         if va_acc > best_acc:
             best_acc = va_acc
             torch.save(model.state_dict(), args.ckpt_dir / 'best_model.pth')
+            torch.save(optimizer.state_dict(),
+                       args.ckpt_dir / 'best_optim.pth')
             print('saved model! acc =', va_acc)
 
     print('best_acc:', best_acc)
