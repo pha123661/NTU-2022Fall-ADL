@@ -3,6 +3,7 @@ from typing import Dict
 import torch
 import torch.nn as nn
 from torch.nn import Embedding
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 
 class SeqClassifier(torch.nn.Module):
@@ -43,10 +44,10 @@ class SeqClassifier(torch.nn.Module):
 
     def forward(self, ids, lengths) -> Dict[str, torch.Tensor]:
         embeds = self.embed(ids)
-        embeds = nn.utils.rnn.pack_padded_sequence(
+        embeds = pack_padded_sequence(
             embeds, lengths, batch_first=True)
         x, h = self.net(embeds)
-        x, lens = nn.utils.rnn.pad_packed_sequence(x, batch_first=True)
+        x, lens = pad_packed_sequence(x, batch_first=True)
         x = x.mean(dim=1)  # average over all tokens to get prediction
         logits = self.clf(x)
 
@@ -54,6 +55,20 @@ class SeqClassifier(torch.nn.Module):
 
 
 class SeqTagger(SeqClassifier):
-    def forward(self, batch) -> Dict[str, torch.Tensor]:
-        # TODO: implement model forward
-        raise NotImplementedError
+
+    def forward(self, ids, lengths) -> Dict[str, torch.Tensor]:
+        embeds = self.embed(ids)
+        embeds = pack_padded_sequence(embeds, lengths, batch_first=True)
+
+        x, h = self.net(embeds)
+        x, lens = pad_packed_sequence(x, batch_first=True)
+        # x.shape = (b, seq_len, h_size)
+        logits = self.clf(x)  # applies classifier on every token
+
+        return logits  # logits.shape = (b, seq_len, n_class)
+
+    def get_token_idx(self, lengths):
+        batch_idx = torch.cat([torch.full((t_len,), i)
+                              for i, t_len in enumerate(lengths)])
+        token_idx = torch.cat([torch.arange(0, t_len) for t_len in lengths])
+        return batch_idx, token_idx

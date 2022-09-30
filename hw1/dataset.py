@@ -1,10 +1,11 @@
+from lib2to3.pgen2 import token
 from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from utils import Vocab
+from utils import Vocab, pad_to_len
 
 
 class SeqClsDataset(Dataset):
@@ -42,7 +43,7 @@ class SeqClsDataset(Dataset):
         #     'id': 'train-4824',
         # }
         text = [ex['text'].split() for ex in samples]
-        length = torch.tensor([len(t) for t in text])
+        lengths = torch.tensor([len(t) for t in text])
 
         text = self.vocab.encode_batch(text, to_len=self.max_len)
         text = torch.tensor(text)
@@ -51,12 +52,12 @@ class SeqClsDataset(Dataset):
             labels = [self.label2idx(ex['intent']) for ex in samples]
             labels = torch.tensor(labels, dtype=torch.long)
 
-            sorted_idx = torch.argsort(length, descending=True)
-            return text[sorted_idx], length[sorted_idx], labels[sorted_idx]
+            sorted_idx = torch.argsort(lengths, descending=True)
+            return text[sorted_idx], lengths[sorted_idx], labels[sorted_idx]
         else:
             ids = np.array([ex['id'] for ex in samples])
-            sorted_idx = torch.argsort(length, descending=True)
-            return text[sorted_idx], length[sorted_idx], ids[sorted_idx.cpu().numpy()]
+            sorted_idx = torch.argsort(lengths, descending=True)
+            return text[sorted_idx], lengths[sorted_idx], ids[sorted_idx.cpu().numpy()]
 
     def label2idx(self, label: str):
         return self.label_mapping[label]
@@ -69,5 +70,39 @@ class SeqTaggingClsDataset(SeqClsDataset):
     ignore_idx = -100
 
     def collate_fn(self, samples):
-        # TODO: implement collate_fn
-        raise NotImplementedError
+        # example = {
+        #     'tokens': ['can', 'i', 'sit', 'on', 'the', 'patio'],
+        #     'tags': ['O', 'O', 'O', 'O', 'O', 'O'],
+        #     'id': 'train-196'
+        # }
+        tokenses = [ex['tokens'] for ex in samples]
+        lengths = torch.tensor([len(tokens) for tokens in tokenses])
+
+        assert all(l <= self.max_len for l in lengths), max(lengths)
+
+        tokenses = self.vocab.encode_batch(tokenses, to_len=self.max_len)
+        tokenses = torch.tensor(tokenses)
+
+        if self.Train:
+            tags: List[List[int]] = list()
+            for example in samples:
+                tags.append([self.label2idx(tag) for tag in example['tags']])
+            tags = pad_to_len(tags, to_len=self.max_len, padding=0)
+            tags = torch.tensor(tags, dtype=torch.long)
+            # masks = tokenses.gt(0).type(torch.float)
+
+            sorted_idx = torch.argsort(lengths, descending=True)
+            return (
+                tokenses[sorted_idx],
+                lengths[sorted_idx],
+                tags[sorted_idx]
+            )
+        else:
+            ids = np.array([ex['id'] for ex in samples])
+
+            sorted_idx = torch.argsort(lengths, descending=True)
+            return (
+                tokenses[sorted_idx],
+                lengths[sorted_idx],
+                ids[sorted_idx.cpu().numpy()]
+            )
