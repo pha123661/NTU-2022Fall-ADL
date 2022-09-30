@@ -18,7 +18,7 @@ class SeqClassifier(torch.nn.Module):
         super(SeqClassifier, self).__init__()
         self.embed = Embedding.from_pretrained(embeddings, freeze=False)
         self.net = nn.LSTM(
-            input_size=embeddings.size(1),
+            input_size=embeddings.shape[1],
             hidden_size=hidden_size,
             num_layers=num_layers,
             dropout=dropout,
