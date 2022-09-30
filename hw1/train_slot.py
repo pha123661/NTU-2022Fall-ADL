@@ -6,7 +6,6 @@ from typing import Dict
 
 import torch
 from seqeval.metrics import accuracy_score
-from seqeval.scheme import IOB2
 from torch.optim import Adam
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -50,6 +49,9 @@ def main(args):
         num_class=len(tag2idx),
     ).to(args.device)
     optimizer = Adam(model.parameters(), lr=args.lr)
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        optimizer, max_lr=args.lr, epochs=args.num_epoch, steps_per_epoch=len(train_loader), pct_start=0.5)
+
     loss_fn = torch.nn.CrossEntropyLoss()
     best_acc = -1
     for epoch in range(1, args.num_epoch + 1):
@@ -69,6 +71,7 @@ def main(args):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+            scheduler.step()
 
         model.eval()
         va_joint_acc = 0
@@ -83,7 +86,7 @@ def main(args):
                 # print(preds)
                 # print(tags)
                 va_joint_acc += accuracy_score(
-                    preds.detach().cpu().tolist(), tags.detach().cpu().tolist())
+                    tags.detach().cpu().tolist(), preds.detach().cpu().tolist())
         model.train()
         va_joint_acc /= len(valid_loader)
         print(f'Epoch {epoch}: valid acc: {va_joint_acc}')
@@ -93,7 +96,8 @@ def main(args):
                        args.ckpt_dir / 'best_model.pth')
             torch.save(optimizer.state_dict(),
                        args.ckpt_dir / 'best_optim.pth')
-            print('saved model! acc =', va_joint_acc)
+            print('new model saved!')
+    print('best acc:', best_acc)
 
 
 def parse_args() -> Namespace:
@@ -123,7 +127,7 @@ def parse_args() -> Namespace:
     # model
     parser.add_argument("--hidden_size", type=int, default=512)
     parser.add_argument("--num_layers", type=int, default=2)
-    parser.add_argument("--dropout", type=float, default=0.1)
+    parser.add_argument("--dropout", type=float, default=0.2)
     parser.add_argument("--bidirectional", type=bool, default=True)
 
     # optimizer
