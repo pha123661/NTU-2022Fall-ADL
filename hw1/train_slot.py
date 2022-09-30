@@ -49,8 +49,8 @@ def main(args):
         num_class=len(tag2idx),
     ).to(args.device)
     optimizer = Adam(model.parameters(), lr=args.lr)
-    # scheduler = torch.optim.lr_scheduler.OneCycleLR(
-    #     optimizer, max_lr=args.lr, epochs=args.num_epoch, steps_per_epoch=len(train_loader), pct_start=0.5)
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        optimizer, max_lr=args.lr, epochs=args.num_epoch, steps_per_epoch=len(train_loader))
 
     loss_fn = torch.nn.CrossEntropyLoss()
     best_acc = -1
@@ -71,7 +71,7 @@ def main(args):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            # scheduler.step()
+            scheduler.step()
 
         model.eval()
         va_joint_acc = 0
@@ -82,11 +82,13 @@ def main(args):
                 logits = model(text, lengths)
                 preds = logits.argmax(dim=-1)
                 tags = tags[:, :logits.shape[1]]
-                # print("#########")
-                # print(preds)
-                # print(tags)
-                va_joint_acc += accuracy_score(
-                    tags.detach().cpu().tolist(), preds.detach().cpu().tolist())
+
+                new_pred = []
+                new_tags = []
+                for l, p, t in zip(lengths, preds, tags):
+                    new_pred.append(p[:l].tolist())
+                    new_tags.append(t[:l].tolist())
+                va_joint_acc += accuracy_score(new_tags, new_pred)
         model.train()
         va_joint_acc /= len(valid_loader)
         print(f'Epoch {epoch}: valid acc: {va_joint_acc}')
