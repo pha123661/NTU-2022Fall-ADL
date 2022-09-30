@@ -49,8 +49,8 @@ def main(args):
         num_class=len(tag2idx),
     ).to(args.device)
     optimizer = Adam(model.parameters(), lr=args.lr)
-    scheduler = torch.optim.lr_scheduler.OneCycleLR(
-        optimizer, max_lr=args.lr, epochs=args.num_epoch, steps_per_epoch=len(train_loader), pct_start=0.5)
+    # scheduler = torch.optim.lr_scheduler.OneCycleLR(
+    #     optimizer, max_lr=args.lr, epochs=args.num_epoch, steps_per_epoch=len(train_loader), pct_start=0.5)
 
     loss_fn = torch.nn.CrossEntropyLoss()
     best_acc = -1
@@ -71,7 +71,7 @@ def main(args):
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            scheduler.step()
+            # scheduler.step()
 
         model.eval()
         va_joint_acc = 0
