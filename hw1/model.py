@@ -68,7 +68,7 @@ class SeqTagger(SeqClassifier):
         return logits  # logits.shape = (b, seq_len, n_class)
 
     def get_token_idx(self, lengths):
-        batch_idx = torch.cat([torch.full((t_len,), i)
-                              for i, t_len in enumerate(lengths)])
-        token_idx = torch.cat([torch.arange(0, t_len) for t_len in lengths])
-        return batch_idx, token_idx
+        batch_idx = torch.cat([torch.full((length,), i)
+                              for i, length in enumerate(lengths)])
+        token_idx = torch.cat([torch.arange(length) for length in lengths])
+        return (batch_idx, token_idx)  # this is **one** item

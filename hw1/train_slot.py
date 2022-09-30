@@ -79,6 +79,9 @@ def main(args):
                 logits = model(text, lengths)
                 preds = logits.argmax(dim=-1)
                 tags = tags[:, :logits.shape[1]]
+                # print("#########")
+                # print(preds)
+                # print(tags)
                 va_joint_acc += accuracy_score(
                     preds.detach().cpu().tolist(), tags.detach().cpu().tolist())
         model.train()
