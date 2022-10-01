@@ -52,7 +52,7 @@ def main(args):
     scheduler = torch.optim.lr_scheduler.OneCycleLR(
         optimizer, max_lr=args.lr, epochs=args.num_epoch, steps_per_epoch=len(train_loader))
 
-    loss_fn = torch.nn.CrossEntropyLoss()
+    loss_fn = torch.nn.CrossEntropyLoss(ignore_index=-100)
     best_acc = -1
     for epoch in range(1, args.num_epoch + 1):
         for text, lengths, tags in tqdm(train_loader):
@@ -61,13 +61,9 @@ def main(args):
             # logits.shape = (b, seq_len, n_class)
             logits = model(text, lengths)
             # logits.shape = (b, n_class, seq_len)
-            # logits = logits.permute(0, 2, 1)
-            tags = tags[:, :logits.shape[1]]
-            # get index of actual tokens (without padding)
-            idx = model.get_token_idx(lengths)
-            # logits[idx].shape = (sum(lengths), n_class)
-            loss = loss_fn(logits[idx], tags[idx])
-
+            logits = torch.swapaxes(logits, -1, -2)
+            tags = tags[:, :lengths.max()]
+            loss = loss_fn(logits, tags)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -75,6 +71,7 @@ def main(args):
 
         model.eval()
         va_joint_acc = 0
+        va_loss = 0
         with torch.no_grad():
             for text, lengths, tags in tqdm(valid_loader):
                 text, tags = text.to(args.device, non_blocking=True), tags.to(
@@ -89,9 +86,15 @@ def main(args):
                     new_pred.append(p[:l].tolist())
                     new_tags.append(t[:l].tolist())
                 va_joint_acc += accuracy_score(new_tags, new_pred)
+
+                logits = torch.swapaxes(logits, -1, -2)
+                tags = tags[:, :lengths.max()]
+                loss = loss_fn(logits, tags)
+                va_loss += loss.item()
         model.train()
         va_joint_acc /= len(valid_loader)
-        print(f'Epoch {epoch}: valid acc: {va_joint_acc}')
+        va_loss /= len(valid_loader)
+        print(f'Epoch {epoch}: valid acc: {va_joint_acc}, va_loss: {va_loss}')
         if va_joint_acc > best_acc:
             best_acc = va_joint_acc
             torch.save(model.state_dict(),

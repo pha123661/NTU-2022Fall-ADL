@@ -35,6 +35,7 @@ def main(args):
         num_class=len(tag2idx),
     ).to(args.device)
     model.load_state_dict(torch.load(args.ckpt_path))
+    model.eval()
 
     all_ids = []
     all_preds = []

@@ -87,9 +87,8 @@ class SeqTaggingClsDataset(SeqClsDataset):
             tags: List[List[int]] = list()
             for example in samples:
                 tags.append([self.label2idx(tag) for tag in example['tags']])
-            tags = pad_to_len(tags, to_len=self.max_len, padding=0)
+            tags = pad_to_len(tags, to_len=self.max_len, padding=-100)
             tags = torch.tensor(tags, dtype=torch.long)
-            # masks = tokenses.gt(0).type(torch.float)
 
             sorted_idx = torch.argsort(lengths, descending=True)
             return (
