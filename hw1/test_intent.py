@@ -78,7 +78,7 @@ def parse_args() -> Namespace:
         "--ckpt_path",
         type=Path,
         help="Path to model checkpoint.",
-        default="./ckpt/intent/best_model.pth",
+        default="./intent.pth",
     )
     parser.add_argument("--pred_file", type=Path, default="pred.intent.csv")
 

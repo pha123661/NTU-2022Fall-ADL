@@ -18,7 +18,7 @@ def main(args):
     tag_idx_path = args.cache_dir / "tag2idx.json"
     tag2idx = json.loads(tag_idx_path.read_text())
 
-    data = json.loads(args.data_dir.read_text())
+    data = json.loads(args.test_file.read_text())
     dataset = SeqTaggingClsDataset(
         data, vocab, tag2idx, args.max_len, train=False)
     test_loader = DataLoader(
@@ -61,9 +61,9 @@ def main(args):
 def parse_args() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument(
-        "--data_dir",
+        "--test_file",
         type=Path,
-        help="Directory to the dataset.",
+        help="Path to the test file.",
         default="./data/slot/test.json",
     )
     parser.add_argument(
@@ -76,7 +76,7 @@ def parse_args() -> Namespace:
         "--ckpt_path",
         type=Path,
         help="Directory to save the model file.",
-        default="./ckpt/slot/best_model.pth",
+        default="./slot.pth",
     )
     parser.add_argument("--pred_file", type=Path, default="pred.slot.csv")
 
@@ -85,7 +85,7 @@ def parse_args() -> Namespace:
 
     # model
     parser.add_argument("--hidden_size", type=int, default=512)
-    parser.add_argument("--num_layers", type=int, default=3)
+    parser.add_argument("--num_layers", type=int, default=2)
     parser.add_argument("--dropout", type=float, default=0.1)
     parser.add_argument("--bidirectional", type=bool, default=True)
 
@@ -93,7 +93,7 @@ def parse_args() -> Namespace:
     parser.add_argument("--batch_size", type=int, default=128)
 
     parser.add_argument(
-        "--device", type=torch.device, help="cpu, cuda, cuda:0, cuda:1", default="cpu"
+        "--device", type=torch.device, help="cpu, cuda, cuda:0, cuda:1", default="cuda"
     )
     args = parser.parse_args()
     return args
