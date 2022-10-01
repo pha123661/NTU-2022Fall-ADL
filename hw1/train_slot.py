@@ -70,7 +70,7 @@ def main(args):
             scheduler.step()
 
         model.eval()
-        va_joint_acc = 0
+        va_joint_cnt = 0
         va_loss = 0
         with torch.no_grad():
             for text, lengths, tags in tqdm(valid_loader):
@@ -80,21 +80,19 @@ def main(args):
                 preds = logits.argmax(dim=-1)
                 tags = tags[:, :logits.shape[1]]
 
-                new_pred = []
-                new_tags = []
                 for l, p, t in zip(lengths, preds, tags):
-                    new_pred.append(p[:l].tolist())
-                    new_tags.append(t[:l].tolist())
-                va_joint_acc += accuracy_score(new_tags, new_pred)
+                    if (p[:l] == t[:l]).all():
+                        va_joint_cnt += 1
 
                 logits = torch.swapaxes(logits, -1, -2)
                 tags = tags[:, :lengths.max()]
                 loss = loss_fn(logits, tags)
                 va_loss += loss.item()
         model.train()
-        va_joint_acc /= len(valid_loader)
+        va_joint_acc = va_joint_cnt / len(datasets['eval'])
         va_loss /= len(valid_loader)
-        print(f'Epoch {epoch}: valid acc: {va_joint_acc}, va_loss: {va_loss}')
+        print(
+            f'Epoch {epoch}: valid joint acc: {va_joint_acc}, va_loss: {va_loss}')
         if va_joint_acc > best_acc:
             best_acc = va_joint_acc
             torch.save(model.state_dict(),
@@ -130,7 +128,7 @@ def parse_args() -> Namespace:
     parser.add_argument("--max_len", type=int, default=128)
 
     # model
-    parser.add_argument("--hidden_size", type=int, default=512)
+    parser.add_argument("--hidden_size", type=int, default=1024)
     parser.add_argument("--num_layers", type=int, default=2)
     parser.add_argument("--dropout", type=float, default=0.2)
     parser.add_argument("--bidirectional", type=bool, default=True)
