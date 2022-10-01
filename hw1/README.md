@@ -17,12 +17,12 @@ bash preprocess.sh
 
 ## Train intent detection model
 ```shell
-python3 train_intent.py
+python train_intent.py
 ```
 Trained model is located at "./ckpt/intent/best_model.pth"
 
 ## Train slot tagging model
 ```shell
-python3 train_slot.py
+python train_slot.py
 ```
 Trained model is located at "./ckpt/slot/best_model.pth"
