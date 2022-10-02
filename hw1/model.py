@@ -58,7 +58,7 @@ class SeqTagger(SeqClassifier):
     def __init__(self, embeddings: torch.tensor, hidden_size: int, num_layers: int, dropout: float, bidirectional: bool, num_class: int) -> None:
         super().__init__(embeddings, hidden_size,
                          num_layers, dropout, bidirectional, num_class)
-        # add a 2-layer CNN
+        # add a 1-layer CNN
         embed_dim = embeddings.shape[1]
         self.conv1 = nn.Sequential(
             nn.Conv1d(embed_dim, embed_dim,
@@ -66,12 +66,12 @@ class SeqTagger(SeqClassifier):
             nn.ReLU(),
             nn.Dropout(dropout),
         )
-        self.conv2 = nn.Sequential(
-            nn.Conv1d(embed_dim, embed_dim,
-                      kernel_size=5, stride=1, padding=2),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-        )
+        # self.conv2 = nn.Sequential(
+        #     nn.Conv1d(embed_dim, embed_dim,
+        #               kernel_size=5, stride=1, padding=2),
+        #     nn.ReLU(),
+        #     nn.Dropout(dropout),
+        # )
 
     def forward(self, ids, lengths) -> Dict[str, torch.Tensor]:
         embeds = self.embed(ids)
@@ -80,7 +80,7 @@ class SeqTagger(SeqClassifier):
         # CNN input: (b, h, seq_len)
         embeds = torch.swapaxes(embeds, -1, -2)
         embeds = self.conv1(embeds)
-        embeds = self.conv2(embeds)
+        # embeds = self.conv2(embeds)
         embeds = torch.swapaxes(embeds, -1, -2)
 
         embeds = pack_padded_sequence(embeds, lengths, batch_first=True)

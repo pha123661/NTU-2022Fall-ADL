@@ -34,7 +34,7 @@ def main(args):
         bidirectional=args.bidirectional,
         num_class=len(tag2idx),
     ).to(args.device)
-    model.load_state_dict(torch.load(args.ckpt_path))
+    model.load_state_dict(torch.load(args.ckpt_path, map_location=args.device))
     model.eval()
 
     all_ids = []
