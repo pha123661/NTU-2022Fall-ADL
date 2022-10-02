@@ -47,6 +47,7 @@ def main(args):
         dropout=args.dropout,
         bidirectional=args.bidirectional,
         num_class=len(tag2idx),
+        RNN_block='GRU',
     ).to(args.device)
     optimizer = Adam(model.parameters(), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.OneCycleLR(

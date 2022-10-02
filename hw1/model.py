@@ -15,17 +15,28 @@ class SeqClassifier(torch.nn.Module):
         dropout: float,
         bidirectional: bool,
         num_class: int,
+        RNN_block='LSTM'
     ) -> None:
         super(SeqClassifier, self).__init__()
         self.embed = Embedding.from_pretrained(embeddings, freeze=False)
-        self.net = nn.GRU(
-            input_size=embeddings.shape[1],
-            hidden_size=hidden_size,
-            num_layers=num_layers,
-            dropout=dropout,
-            bidirectional=bidirectional,
-            batch_first=True,
-        )
+        if RNN_block == 'LSTM':
+            self.net = nn.LSTM(
+                input_size=embeddings.shape[1],
+                hidden_size=hidden_size,
+                num_layers=num_layers,
+                dropout=dropout,
+                bidirectional=bidirectional,
+                batch_first=True,
+            )
+        else:
+            self.net = nn.GRU(
+                input_size=embeddings.shape[1],
+                hidden_size=hidden_size,
+                num_layers=num_layers,
+                dropout=dropout,
+                bidirectional=bidirectional,
+                batch_first=True,
+            )
         if bidirectional:
             self.clf = nn.Sequential(
                 nn.Dropout(0.1),
@@ -55,9 +66,9 @@ class SeqClassifier(torch.nn.Module):
 
 
 class SeqTagger(SeqClassifier):
-    def __init__(self, embeddings: torch.tensor, hidden_size: int, num_layers: int, dropout: float, bidirectional: bool, num_class: int) -> None:
+    def __init__(self, embeddings: torch.tensor, hidden_size: int, num_layers: int, dropout: float, bidirectional: bool, num_class: int, RNN_block) -> None:
         super().__init__(embeddings, hidden_size,
-                         num_layers, dropout, bidirectional, num_class)
+                         num_layers, dropout, bidirectional, num_class, RNN_block)
         # add a 1-layer CNN
         embed_dim = embeddings.shape[1]
         self.conv1 = nn.Sequential(

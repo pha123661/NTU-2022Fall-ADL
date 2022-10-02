@@ -33,6 +33,7 @@ def main(args):
         dropout=args.dropout,
         bidirectional=args.bidirectional,
         num_class=len(tag2idx),
+        RNN_block='GRU',
     ).to(args.device)
     model.load_state_dict(torch.load(args.ckpt_path, map_location=args.device))
     model.eval()

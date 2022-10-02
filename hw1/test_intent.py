@@ -39,7 +39,7 @@ def main(args):
     model.eval()
 
     # load weights into model
-    model.load_state_dict(torch.load(args.ckpt_path))
+    model.load_state_dict(torch.load(args.ckpt_path, map_location=args.device))
     # predict dataset
     all_ids = []
     all_preds = []
