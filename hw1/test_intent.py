@@ -1,5 +1,6 @@
 import csv
 import json
+import os
 import pickle
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
@@ -14,6 +15,11 @@ from utils import Vocab
 
 
 def main(args):
+    try:
+        os.makedirs(os.path.dirname(args.pred_file), exist_ok=True)
+    except:
+        pass
+
     with open(args.cache_dir / "vocab.pkl", "rb") as f:
         vocab: Vocab = pickle.load(f)
 
