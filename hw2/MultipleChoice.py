@@ -273,6 +273,7 @@ def main():
             ]
         else:
             tokenized_inputs['label'] = [0] * len(examples['paragraphs'])
+
         return tokenized_inputs
 
     if training_args.do_train:
