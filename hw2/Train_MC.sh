@@ -1,6 +1,6 @@
 # https://huggingface.co/docs/transformers/v4.23.1/en/main_classes/trainer#transformers.TrainingArguments
 python MultipleChoice.py  \
---model_name_or_path="hfl/chinese-roberta-wwm-ext-large" \
+--model_name_or_path="hfl/chinese-macbert-large" \
 --cache_dir="./cache" \
 \
 --train_file="./data/train.json" \
@@ -13,7 +13,8 @@ python MultipleChoice.py  \
 --do_eval \
 --num_train_epochs=9 \
 --auto_find_batch_size \
---warmup_ratio=0.05 \
+--learning_rate=2e-5 \
+--warmup_steps=300 \
 --bf16 --tf32=y \
 --dataloader_num_workers=6 \
 \
