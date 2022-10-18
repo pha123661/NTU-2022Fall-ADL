@@ -19,8 +19,8 @@ python MultipleChoice.py  \
 --dataloader_num_workers=6 \
 \
 --evaluation_strategy="steps" \
---eval_steps=2000 \
---save_steps=2000 \
+--eval_steps=500 \
+--save_steps=500 \
 --metric_for_best_model="accuracy" \
 --load_best_model_at_end  \
 --report_to="tensorboard" \
