@@ -13,6 +13,7 @@ python MultipleChoice.py  \
 --do_eval \
 --num_train_epochs=9 \
 --auto_find_batch_size \
+--gradient_accumulation_steps=4 \
 --learning_rate=2e-5 \
 --warmup_steps=300 \
 --bf16 --tf32=y \
