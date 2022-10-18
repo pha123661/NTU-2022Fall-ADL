@@ -334,12 +334,12 @@ def main():
 
     if data_args.max_seq_length is None:
         max_seq_length = tokenizer.model_max_length
-        if max_seq_length > 1024:
+        if max_seq_length > 512:
             logger.warning(
                 f"The tokenizer picked seems to have a very large `model_max_length` ({tokenizer.model_max_length}). "
-                "Picking 1024 instead. You can change that default value by passing --max_seq_length xxx."
+                "Picking 512 instead. You can change that default value by passing --max_seq_length xxx."
             )
-            max_seq_length = 1024
+            max_seq_length = 512
     else:
         if data_args.max_seq_length > tokenizer.model_max_length:
             logger.warning(
