@@ -42,8 +42,11 @@ def main(args):
     """## Load Model and Tokenizer"""
 
     model = AutoModelForQuestionAnswering.from_pretrained(
-        'bert-base-chinese').to(device)
-    tokenizer = BertTokenizerFast.from_pretrained('bert-base-chinese')
+        'hfl/chinese-macbert-large',
+        cache_dir='./cache/',
+    ).to(device)
+    tokenizer = BertTokenizerFast.from_pretrained(
+        'hfl/chinese-macbert-large', cache_dir='./cache/',)
 
     with open('./data/context.json', 'r') as f:
         context = json.load(f)
@@ -79,7 +82,7 @@ def main(args):
     test_set = QA_Dataset("test", test_questions,
                           test_questions_tokenized, context_tokenized)
 
-    train_batch_size = 16
+    train_batch_size = 8
 
     # Note: Do NOT change batch size of valid_loader / test_loader !
     # Although batch size=1, it is actually a batch consisting of several windows from the same QA pair
