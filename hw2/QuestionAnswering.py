@@ -166,7 +166,7 @@ def main(args):
     model.train()
 
     print("Start Training ...")
-
+    best_valid_acc = -1
     for epoch in range(num_epoch):
         step = 1
         train_loss = train_acc = 0
@@ -217,16 +217,15 @@ def main(args):
                     # prediction is correct only if answer text exactly matches
                     valid_acc += evaluate(data,
                                           output, valid_questions[i]["relevant"]) == valid_questions[i]["answer"]["text"]
+                valid_acc /= len(valid_loader)
                 print(
-                    f"Validation | Epoch {epoch + 1} | acc = {valid_acc / len(valid_loader):.3f}")
+                    f"Validation | Epoch {epoch + 1} | acc = {valid_acc:.3f}")
             model.train()
-
-    # Save a model and its configuration file to the directory 「saved_model」
-    # i.e. there are two files under the direcory 「saved_model」: 「pytorch_model.bin」 and 「config.json」
-    # Saved model can be re-loaded using 「model = BertForQuestionAnswering.from_pretrained("saved_model")」
-    print("Saving Model ...")
-    model_save_dir = "saved_model"
-    model.save_pretrained(model_save_dir)
+            if valid_acc >= best_valid_acc:
+                best_valid_acc = valid_acc
+                print("Saving Model ...")
+                model_save_dir = "QA_ckpt"
+                model.save_pretrained(model_save_dir)
 
     """## Testing"""
 
