@@ -7,6 +7,7 @@ from argparse import ArgumentParser
 import numpy as np
 import torch
 import transformers
+from accelerate import Accelerator
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard.writer import SummaryWriter
 from tqdm.auto import tqdm
@@ -28,72 +29,6 @@ def seed_all(seed):
 
 
 def main(args):
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    seed_all(0)
-
-    # Change "fp16_training" to True to support automatic mixed precision training (fp16)
-    fp16_training = True
-
-    if fp16_training:
-        from accelerate import Accelerator
-        accelerator = Accelerator(fp16=True)
-        device = accelerator.device
-
-    """## Load Model and Tokenizer"""
-
-    model = AutoModelForQuestionAnswering.from_pretrained(
-        'hfl/chinese-macbert-large',
-        cache_dir='./cache/',
-    ).to(device)
-    tokenizer = BertTokenizerFast.from_pretrained(
-        'hfl/chinese-macbert-large', cache_dir='./cache/',)
-
-    with open('./data/context.json', 'r') as f:
-        context = json.load(f)
-
-    with open('./data/train.json', 'r') as f:
-        train_questions = json.load(f)
-
-    with open('./data/valid.json', 'r') as f:
-        valid_questions = json.load(f)
-
-    with open('./inference_test.json', 'r') as f:
-        test_questions = json.load(f)
-
-    """## Tokenize Data"""
-    # Tokenize questions and paragraphs separately
-    # 「add_special_tokens」 is set to False since special tokens will be added when tokenized questions and paragraphs are combined in datset __getitem__
-
-    train_questions_tokenized = tokenizer(
-        [train_question["question"] for train_question in train_questions], add_special_tokens=False)
-    valid_questions_tokenized = tokenizer(
-        [valid_question["question"] for valid_question in valid_questions], add_special_tokens=False)
-    test_questions_tokenized = tokenizer(
-        [test_question["question"] for test_question in test_questions], add_special_tokens=False)
-
-    context_tokenized = tokenizer(context, add_special_tokens=False)
-
-    """## Dataset and Dataloader"""
-
-    train_set = QA_Dataset("train", train_questions,
-                           train_questions_tokenized, context_tokenized)
-    valid_set = QA_Dataset("dev", valid_questions,
-                           valid_questions_tokenized, context_tokenized)
-    test_set = QA_Dataset("test", test_questions,
-                          test_questions_tokenized, context_tokenized)
-
-    train_batch_size = 8
-
-    # Note: Do NOT change batch size of valid_loader / test_loader !
-    # Although batch size=1, it is actually a batch consisting of several windows from the same QA pair
-    train_loader = DataLoader(
-        train_set, batch_size=train_batch_size, shuffle=True, pin_memory=True)
-    valid_loader = DataLoader(valid_set, batch_size=1,
-                              shuffle=False, pin_memory=True)
-    test_loader = DataLoader(test_set, batch_size=1,
-                             shuffle=False, pin_memory=True)
-
     """## Function for Evaluation"""
 
     def fill_quote(answer, left_symbol, right_symbol):
@@ -151,120 +86,182 @@ def main(args):
 
         return answer
 
-    """## Training"""
+    seed_all(0)
 
-    num_epoch = 10
-    validation = True
-    logging_step = 100
-    learning_rate = 2e-5
-    optimizer = AdamW(model.parameters(), lr=learning_rate)
-    num_training_steps = len(train_loader) * num_epoch
-    num_warmup_steps = 300
-    scheduler = transformers.get_linear_schedule_with_warmup(
-        optimizer, num_warmup_steps, num_training_steps, last_epoch=-1)
+    accelerator = Accelerator(fp16=True)
+    device = accelerator.device
 
-    if fp16_training:
+    """## Load Model and Tokenizer"""
+
+    model = AutoModelForQuestionAnswering.from_pretrained(
+        args.model_name_or_path,
+        cache_dir='./cache/',
+    ).to(device)
+    tokenizer = BertTokenizerFast.from_pretrained(
+        args.model_name_or_path,
+        cache_dir='./cache/',
+    )
+
+    """## Dataset and Dataloader"""
+
+    if args.context_file is None:
+        raise Exception("Please provide context file via --context_file")
+    with open(args.context_file, 'r') as f:
+        context = json.load(f)
+        context_tokenized = tokenizer(context, add_special_tokens=False)
+
+    if args.train_file is not None:
+        with open(args.train_file, 'r') as f:
+            train_questions = json.load(f)
+        train_questions_tokenized = tokenizer(
+            [train_question["question"] for train_question in train_questions], add_special_tokens=False)
+        train_set = QA_Dataset("train", train_questions,
+                               train_questions_tokenized, context_tokenized)
+        train_batch_size = 8
+        train_loader = DataLoader(
+            train_set, batch_size=train_batch_size, shuffle=True, pin_memory=True)
+
+    if args.validation_file is not None:
+        with open(args.validation_file, 'r') as f:
+            valid_questions = json.load(f)
+        valid_questions_tokenized = tokenizer(
+            [valid_question["question"] for valid_question in valid_questions], add_special_tokens=False)
+        valid_set = QA_Dataset("dev", valid_questions,
+                               valid_questions_tokenized, context_tokenized)
+        valid_loader = DataLoader(valid_set, batch_size=1,
+                                  shuffle=False, pin_memory=True)
+
+    if args.test_file is not None:
+        with open(args.test_file, 'r') as f:
+            test_questions = json.load(f)
+        test_questions_tokenized = tokenizer(
+            [test_question["question"] for test_question in test_questions], add_special_tokens=False)
+        test_set = QA_Dataset("test", test_questions,
+                              test_questions_tokenized, context_tokenized)
+        test_loader = DataLoader(test_set, batch_size=1,
+                                 shuffle=False, pin_memory=True)
+
+    if args.do_train:
+        """## Training"""
+
+        num_epoch = 10
+        logging_step = 100
+        learning_rate = 2e-5
+        optimizer = AdamW(model.parameters(), lr=learning_rate)
+        num_training_steps = len(train_loader) * num_epoch
+        num_warmup_steps = 300
+        scheduler = transformers.get_linear_schedule_with_warmup(
+            optimizer, num_warmup_steps, num_training_steps, last_epoch=-1)
+
         model, optimizer, train_loader = accelerator.prepare(
             model, optimizer, train_loader)
 
-    model.train()
+        model.train()
 
-    writer = SummaryWriter()
+        writer = SummaryWriter()
 
-    print("Start Training ...")
-    best_valid_acc = -1
-    for epoch in range(num_epoch):
-        step = 1
-        train_loss = train_acc = 0
-        accum_iter = 4
-        for batch_idx, data in enumerate(tqdm(train_loader)):
-            # Load all data into GPU
-            data = [i.to(device) for i in data]
+        print("Start Training ...")
+        best_valid_acc = -1
+        for epoch in range(num_epoch):
+            step = 1
+            train_loss = train_acc = 0
+            accum_iter = 4
+            for batch_idx, data in enumerate(tqdm(train_loader)):
+                # Load all data into GPU
+                data = [i.to(device) for i in data]
 
-            # Model inputs: input_ids, token_type_ids, attention_mask, start_positions, end_positions (Note: only "input_ids" is mandatory)
-            # Model outputs: start_logits, end_logits, loss (return when start_positions/end_positions are provided)
-            output = model(input_ids=data[0], token_type_ids=data[1],
-                           attention_mask=data[2], start_positions=data[3], end_positions=data[4])
+                # Model inputs: input_ids, token_type_ids, attention_mask, start_positions, end_positions (Note: only "input_ids" is mandatory)
+                # Model outputs: start_logits, end_logits, loss (return when start_positions/end_positions are provided)
+                output = model(input_ids=data[0], token_type_ids=data[1],
+                               attention_mask=data[2], start_positions=data[3], end_positions=data[4])
 
-            # Choose the most probable start position / end position
-            start_index = torch.argmax(output.start_logits, dim=1)
-            end_index = torch.argmax(output.end_logits, dim=1)
+                # Choose the most probable start position / end position
+                start_index = torch.argmax(output.start_logits, dim=1)
+                end_index = torch.argmax(output.end_logits, dim=1)
 
-            # Prediction is correct only if both start_index and end_index are correct
-            train_acc += ((start_index == data[3]) &
-                          (end_index == data[4])).float().mean()
-            train_loss += output.loss
+                # Prediction is correct only if both start_index and end_index are correct
+                train_acc += ((start_index == data[3]) &
+                              (end_index == data[4])).float().mean()
+                train_loss += output.loss
 
-            train_loss = train_loss / accum_iter
-            if fp16_training:
+                train_loss = train_loss / accum_iter
                 accelerator.backward(output.loss)
-            else:
-                output.loss.backward()
-            if ((batch_idx + 1) % accum_iter == 0) or (batch_idx + 1 == len(train_loader)):
-                optimizer.step()
-                optimizer.zero_grad()
-                scheduler.step()
-            step += 1
-            # Print training loss and accuracy over past logging step
-            if step % logging_step == 0:
-                writer.add_scalar(
-                    'train/loss', train_loss.item() / logging_step, global_step=step)
-                writer.add_scalar(
-                    'train/acc', train_acc / logging_step, global_step=step)
-                print(
-                    f"Epoch {epoch + 1} | Step {step} | loss = {train_loss.item() / logging_step:.3f}, acc = {train_acc / logging_step:.3f}")
-                train_loss = train_acc = 0
 
-        if validation:
-            print("Evaluating Dev Set ...")
-            model.eval()
-            with torch.no_grad():
-                valid_acc = 0
-                for i, data in enumerate(tqdm(valid_loader)):
-                    output = model(input_ids=data[0].squeeze(dim=0).to(device), token_type_ids=data[1].squeeze(dim=0).to(device),
-                                   attention_mask=data[2].squeeze(dim=0).to(device))
-                    # prediction is correct only if answer text exactly matches
-                    valid_acc += evaluate(data,
-                                          output, valid_questions[i]["relevant"]) == valid_questions[i]["answer"]["text"]
-                valid_acc /= len(valid_loader)
-                print(
-                    f"Validation | Epoch {epoch + 1} | acc = {valid_acc:.3f}")
-                writer.add_scalar(
-                    'valid/acc', valid_acc, global_step=epoch)
-            model.train()
-            if valid_acc >= best_valid_acc:
-                best_valid_acc = valid_acc
-                print("Saving Model ...")
-                model_save_dir = "QA_ckpt"
-                model.save_pretrained(model_save_dir)
+                if ((batch_idx + 1) % accum_iter == 0) or (batch_idx + 1 == len(train_loader)):
+                    optimizer.step()
+                    optimizer.zero_grad()
+                    scheduler.step()
+                step += 1
+                # Print training loss and accuracy over past logging step
+                if step % logging_step == 0:
+                    writer.add_scalar(
+                        'train/loss', train_loss.item() / logging_step, global_step=step)
+                    writer.add_scalar(
+                        'train/acc', train_acc / logging_step, global_step=step)
+                    print(
+                        f"Epoch {epoch + 1} | Step {step} | loss = {train_loss.item() / logging_step:.3f}, acc = {train_acc / logging_step:.3f}")
+                    train_loss = train_acc = 0
 
-    """## Testing"""
+            if args.do_eval:
+                print("Evaluating Dev Set ...")
+                model.eval()
+                with torch.no_grad():
+                    valid_acc = 0
+                    for i, data in enumerate(tqdm(valid_loader)):
+                        output = model(input_ids=data[0].squeeze(dim=0).to(device), token_type_ids=data[1].squeeze(dim=0).to(device),
+                                       attention_mask=data[2].squeeze(dim=0).to(device))
+                        # prediction is correct only if answer text exactly matches
+                        valid_acc += evaluate(data,
+                                              output, valid_questions[i]["relevant"]) == valid_questions[i]["answer"]["text"]
+                    valid_acc /= len(valid_loader)
+                    print(
+                        f"Validation | Epoch {epoch + 1} | acc = {valid_acc:.3f}")
+                    writer.add_scalar(
+                        'valid/acc', valid_acc, global_step=epoch)
+                model.train()
+                if valid_acc >= best_valid_acc:
+                    best_valid_acc = valid_acc
+                    print("Saving Model ...")
+                    model.save_pretrained(args.output_dir)
+                    tokenizer.save_pretrained(args.output_dir)
 
-    print("Evaluating Test Set ...")
+    if args.do_predict:
+        """## Testing"""
 
-    result = []
+        print("Evaluating Test Set ...")
 
-    model.eval()
-    with torch.no_grad():
-        for i, data in enumerate(tqdm(test_loader)):
-            output = model(input_ids=data[0].squeeze(dim=0).to(device), token_type_ids=data[1].squeeze(dim=0).to(device),
-                           attention_mask=data[2].squeeze(dim=0).to(device))
-            result.append(
-                evaluate(data, output, test_questions[i]['relevant']))
+        result = []
 
-    result_file = "result.csv"
-    with open(result_file, 'w') as f:
-        f.write("ID,Answer\n")
-        for i, test_question in enumerate(test_questions):
-            # Replace commas in answers with empty strings (since csv is separated by comma)
-            # Answers in kaggle are processed in the same way
-            f.write(f"{test_question['id']},{result[i].replace(',','')}\n")
+        model.eval()
+        with torch.no_grad():
+            for i, data in enumerate(tqdm(test_loader)):
+                output = model(input_ids=data[0].squeeze(dim=0).to(device), token_type_ids=data[1].squeeze(dim=0).to(device),
+                               attention_mask=data[2].squeeze(dim=0).to(device))
+                result.append(
+                    evaluate(data, output, test_questions[i]['relevant']))
+        try:
+            import os
+            os.makedirs(os.path.dirname(args.pred_file), exist_ok=True)
+        except:
+            pass
+        with open(args.output_file, 'w') as f:
+            f.write("ID,Answer\n")
+            for i, test_question in enumerate(test_questions):
+                f.write(f"{test_question['id']},{result[i].replace(',','')}\n")
 
-    print(f"Completed! Result is in {result_file}")
+        print(f"Completed! Result is in {args.output_file}")
 
 
 def parse_args():
     parser = ArgumentParser()
+    parser.add_argument(
+        "--train_file",
+        help="Path to the train file."
+    )
+    parser.add_argument(
+        "--validation_file",
+        help="Path to the test file."
+    )
     parser.add_argument(
         "--test_file",
         help="Path to the test file."
@@ -272,7 +269,6 @@ def parse_args():
     parser.add_argument(
         "--context_file",
         help="Path to the context file.",
-        default="./datasets/context.json",
     )
     parser.add_argument(
         "--cache_dir",
@@ -280,13 +276,29 @@ def parse_args():
         default="./cache/",
     )
     parser.add_argument(
-        "--model_path",
+        "--output_dir",
+        help="Directory to save model checkpoint.",
+    )
+    parser.add_argument(
+        "--model_name_or_path",
         help="Path to model checkpoint.",
     )
-    parser.add_argument("--result_file", default="result.csv")
+    parser.add_argument(
+        "--output_file",
+        help="Path to the output file.",
+    )
 
     parser.add_argument(
-        "--device", type=torch.device, help="cpu, cuda, cuda:0, cuda:1", default="cuda"
+        "--do_train",
+        action='store_true',
+    )
+    parser.add_argument(
+        "--do_eval",
+        action='store_true',
+    )
+    parser.add_argument(
+        "--do_predict",
+        action='store_true',
     )
     args = parser.parse_args()
     return args

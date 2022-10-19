@@ -11,9 +11,9 @@ class QA_Dataset(Dataset):
         self.tokenized_questions = tokenized_questions
         self.tokenized_paragraphs = tokenized_paragraphs
         self.max_question_len = 64
-        self.max_paragraph_len = 512 - 64 - 3  # questions and special tokens
+        self.max_paragraph_len = 200  # questions and special tokens
 
-        self.doc_stride = 10
+        self.doc_stride = 25
 
         # Input sequence length = [CLS] + question + [SEP] + paragraph + [SEP]
         self.max_seq_len = 1 + self.max_question_len + 1 + self.max_paragraph_len + 1
