@@ -8,6 +8,7 @@ import numpy as np
 import torch
 import transformers
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard.writer import SummaryWriter
 from tqdm.auto import tqdm
 from transformers import (AdamW, AutoModelForQuestionAnswering,
                           BertTokenizerFast)
@@ -152,7 +153,7 @@ def main(args):
 
     """## Training"""
 
-    num_epoch = 20
+    num_epoch = 10
     validation = True
     logging_step = 100
     learning_rate = 2e-5
@@ -167,6 +168,8 @@ def main(args):
             model, optimizer, train_loader)
 
     model.train()
+
+    writer = SummaryWriter()
 
     print("Start Training ...")
     best_valid_acc = -1
@@ -202,9 +205,12 @@ def main(args):
                 optimizer.zero_grad()
                 scheduler.step()
             step += 1
-
             # Print training loss and accuracy over past logging step
             if step % logging_step == 0:
+                writer.add_scalar(
+                    'train/loss', train_loss.item() / logging_step, global_step=step)
+                writer.add_scalar(
+                    'train/acc', train_acc / logging_step, global_step=step)
                 print(
                     f"Epoch {epoch + 1} | Step {step} | loss = {train_loss.item() / logging_step:.3f}, acc = {train_acc / logging_step:.3f}")
                 train_loss = train_acc = 0
@@ -223,6 +229,8 @@ def main(args):
                 valid_acc /= len(valid_loader)
                 print(
                     f"Validation | Epoch {epoch + 1} | acc = {valid_acc:.3f}")
+                writer.add_scalar(
+                    'valid/acc', valid_acc, global_step=epoch)
             model.train()
             if valid_acc >= best_valid_acc:
                 best_valid_acc = valid_acc
