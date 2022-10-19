@@ -1,6 +1,6 @@
 # https://huggingface.co/docs/transformers/v4.23.1/en/main_classes/trainer#transformers.TrainingArguments
 python MultipleChoice.py  \
---model_name_or_path="hfl/chinese-macbert-large" \
+--model_name_or_path="hfl/chinese-macbert-base" \
 --cache_dir="./cache" \
 \
 --train_file="./data/train.json" \
@@ -16,7 +16,6 @@ python MultipleChoice.py  \
 --gradient_accumulation_steps=4 \
 --learning_rate=2e-5 \
 --warmup_steps=300 \
---bf16 --tf32=y \
 --dataloader_num_workers=6 \
 \
 --evaluation_strategy="steps" \
@@ -25,3 +24,5 @@ python MultipleChoice.py  \
 --metric_for_best_model="accuracy" \
 --load_best_model_at_end  \
 --report_to="tensorboard" \
+\
+--bf16 --tf32=y \
