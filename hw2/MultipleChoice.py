@@ -384,18 +384,16 @@ def main():
         results = trainer.predict(test_dataset)
         predictions = np.argmax(results.predictions, axis=1)
         output_json = []
-
         for i, prediction in enumerate(predictions):
-            assert (prediction < len(test_dataset['paragraphs'][i]))
-            ex = {
+            element = {
                 'id': test_dataset['id'][i],
                 'question': test_dataset['question'][i],
                 'paragraphs': test_dataset['paragraphs'][i],
                 'relevant': test_dataset['paragraphs'][i][prediction]
             }
-            output_json.append(ex)
-        json.dump(output_json, open(data_args.output_file, 'w',
-                  encoding='utf-8'), indent=2, ensure_ascii=False)
+            output_json.append(element)
+        with open(data_args.output_file, 'w', encoding='utf-8') as f:
+            json.dump(output_json, f, indent=2, ensure_ascii=False)
 
 
 if __name__ == "__main__":
