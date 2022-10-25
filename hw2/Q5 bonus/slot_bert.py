@@ -87,7 +87,7 @@ model = AutoModelForTokenClassification.from_pretrained(
     model, num_labels=len(tag2index))
 
 training_args = TrainingArguments(
-    output_dir="./slot",
+    output_dir="./slot_ckpt",
     learning_rate=2e-5,
     per_device_train_batch_size=16,
     per_device_eval_batch_size=16,

@@ -186,7 +186,7 @@ dataset = dataset.map(preprocess_fn)
 model = AutoModelForSequenceClassification.from_pretrained(
     model, num_labels=len(intent2idx))
 training_args = TrainingArguments(
-    output_dir="./intent",
+    output_dir="./intent_ckpt",
     learning_rate=2e-5,
     per_device_train_batch_size=16,
     per_device_eval_batch_size=16,
@@ -204,4 +204,5 @@ trainer = Trainer(
     data_collator=DataCollatorWithPadding(tokenizer=tokenizer),
     compute_metrics=compute_metrics
 )
-print(trainer.evaluate())
+
+trainer.train()
