@@ -73,11 +73,17 @@ def compute_metrics(eval_preds):
     ]
     all_metrics = metric.compute(
         predictions=true_predictions, references=true_labels)
+    cnt = 0
+    for p, gt in zip(true_labels, true_predictions):
+        if all(pp == gg for pp, gg in zip(p, gt)):
+            cnt += 1
+    seq_acc = cnt / len(predictions)
     return {
         "precision": all_metrics["overall_precision"],
         "recall": all_metrics["overall_recall"],
         "f1": all_metrics["overall_f1"],
         "accuracy": all_metrics["overall_accuracy"],
+        "sequence_accuracy": seq_acc,
     }
 
 
@@ -105,4 +111,4 @@ trainer = Trainer(
     data_collator=DataCollatorForTokenClassification(tokenizer=tokenizer),
     compute_metrics=compute_metrics
 )
-trainer.train()
+print(trainer.evaluate())
