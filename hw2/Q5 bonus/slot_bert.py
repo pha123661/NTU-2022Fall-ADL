@@ -111,4 +111,4 @@ trainer = Trainer(
     data_collator=DataCollatorForTokenClassification(tokenizer=tokenizer),
     compute_metrics=compute_metrics
 )
-print(trainer.evaluate())
+trainer.train()
