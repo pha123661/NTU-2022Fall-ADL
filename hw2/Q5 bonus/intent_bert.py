@@ -1,3 +1,4 @@
+import numpy as np
 from datasets import load_dataset
 from transformers import (AutoModelForSequenceClassification, AutoTokenizer,
                           DataCollatorWithPadding, Trainer, TrainingArguments)
@@ -155,6 +156,13 @@ intent2idx = {
     "oil_change_how": 149
 }
 
+
+def compute_metrics(eval_predictions):
+    predictions, label_ids = eval_predictions
+    preds = np.argmax(predictions, axis=1)
+    return {"accuracy": (preds == label_ids).astype(np.float32).mean().item()}
+
+
 dataset = load_dataset(
     'json',
     data_files={
@@ -194,5 +202,6 @@ trainer = Trainer(
     eval_dataset=dataset["dev"],
     tokenizer=tokenizer,
     data_collator=DataCollatorWithPadding(tokenizer=tokenizer),
+    compute_metrics=compute_metrics
 )
-trainer.train()
+print(trainer.evaluate())
