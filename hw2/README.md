@@ -6,7 +6,7 @@ Department: GINM 11 \
 ---
 
 ## How to Train
-1. Place training data at `/.data/` \
+1. Place training data at `./data/` \
    eg: `./data/train.json`, `./data/valid.json`, `./data/context.json`
 2. Train the multiple choice model by:
    ``` shell
