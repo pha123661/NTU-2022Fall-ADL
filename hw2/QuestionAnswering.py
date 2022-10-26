@@ -241,7 +241,7 @@ def main(args):
                     evaluate(data, output, test_questions[i]['relevant']))
         try:
             import os
-            os.makedirs(os.path.dirname(args.pred_file), exist_ok=True)
+            os.makedirs(os.path.dirname(args.output_file), exist_ok=True)
         except:
             pass
         with open(args.output_file, 'w') as f:
