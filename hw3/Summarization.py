@@ -12,29 +12,19 @@ from typing import Optional
 import datasets
 import nltk  # Here to have a nice missing dependency error message early on
 import numpy as np
-from datasets import load_dataset
-
-from rouge import Rouge
 import transformers
+from datasets import load_dataset
 from filelock import FileLock
-from transformers import (
-    AutoConfig,
-    AutoModelForSeq2SeqLM,
-    AutoTokenizer,
-    DataCollatorForSeq2Seq,
-    HfArgumentParser,
-    MBart50Tokenizer,
-    MBart50TokenizerFast,
-    MBartTokenizer,
-    MBartTokenizerFast,
-    Seq2SeqTrainer,
-    Seq2SeqTrainingArguments,
-    set_seed,
-)
+from rouge import Rouge
+from transformers import (AutoConfig, AutoModelForSeq2SeqLM, AutoTokenizer,
+                          DataCollatorForSeq2Seq, HfArgumentParser,
+                          MBart50Tokenizer, MBart50TokenizerFast,
+                          MBartTokenizer, MBartTokenizerFast, Seq2SeqTrainer,
+                          Seq2SeqTrainingArguments, set_seed)
 from transformers.trainer_utils import get_last_checkpoint
-from transformers.utils import check_min_version, is_offline_mode, send_example_telemetry
-from transformers.utils.versions import require_version
+from transformers.utils import is_offline_mode
 
+from tw_rouge import get_rouge
 
 logger = logging.getLogger(__name__)
 
@@ -584,8 +574,9 @@ def main():
         # Some simple post-processing
         decoded_preds, decoded_labels = postprocess_text(
             decoded_preds, decoded_labels)
-        result = rouge.get_scores(
-            hyps=decoded_preds, refs=decoded_labels, avg=True)
+        result = get_rouge(decoded_preds, decoded_labels)
+        # result = rouge.get_scores(
+        #     hyps=decoded_preds, refs=decoded_labels, avg=True)
         result = {k: round(v['f'] * 100, 4) for k, v in result.items()}
         print(result)
         prediction_lens = [np.count_nonzero(

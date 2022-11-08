@@ -12,7 +12,7 @@ python Summarization.py \
 --output_dir="./MC_ckpt" \
 --do_train \
 --do_eval \
---num_train_epochs=500 \
+--num_train_epochs=100 \
 --auto_find_batch_size \
 --gradient_accumulation_steps=4 \
 --learning_rate=5e-5 \
@@ -27,5 +27,4 @@ python Summarization.py \
 --report_to="tensorboard" \
 --predict_with_generate=True \
 \
---fp16 \
-# --bf16 --tf32=y \
+--bf16 --tf32=y \
