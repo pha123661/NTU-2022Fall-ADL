@@ -2,3 +2,6 @@ data
 **cache**
 **ckpt**
 .ADL_HW3
+generated_predictions.txt
+**pred**
+test_input.json
