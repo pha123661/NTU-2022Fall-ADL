@@ -1,6 +1,7 @@
-import pathlib
-import jsonlines
 import argparse
+import pathlib
+
+import jsonlines
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--test_jsonl", type=str, required=True)
@@ -18,8 +19,8 @@ with jsonlines.open(args.test_jsonl) as f:
 with open(args.gen_txt) as f:
     for entry, title in zip(test_jsonl, f.readlines()):
         out_jsonl.append({
+            'title': title.strip(),
             'id': entry['id'],
-            'title': title.strip()
         })
 
 args.output.parent.mkdir(exist_ok=True, parents=True)
