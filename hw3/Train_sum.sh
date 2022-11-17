@@ -9,7 +9,7 @@ python Summarization.py \
 --summary_column="title" \
 --preprocessing_num_workers=6 \
 \
---output_dir="./MC_ckpt" \
+--output_dir="./Sum_ckpt" \
 --do_train \
 --do_eval \
 --num_train_epochs=100 \
