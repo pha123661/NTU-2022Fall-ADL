@@ -12,25 +12,20 @@ from typing import Optional
 import datasets
 import nltk  # Here to have a nice missing dependency error message early on
 import numpy as np
-import torch
 import transformers
 from datasets import load_dataset
 from filelock import FileLock
-from torch.autograd import Variable
-from torch.distributions import Categorical
-from torch.utils.data import DataLoader
-from tqdm import tqdm
-from transformers import (AdamW, AutoConfig, AutoModelForSeq2SeqLM,
-                          AutoTokenizer, DataCollatorForSeq2Seq,
-                          HfArgumentParser, MBart50Tokenizer,
-                          MBart50TokenizerFast, MBartTokenizer,
-                          MBartTokenizerFast, Seq2SeqTrainer,
-                          Seq2SeqTrainingArguments,
-                          get_cosine_schedule_with_warmup, set_seed)
+from rouge import Rouge
+from transformers import (AutoConfig, AutoModelForSeq2SeqLM, AutoTokenizer,
+                          DataCollatorForSeq2Seq, HfArgumentParser,
+                          MBart50Tokenizer, MBart50TokenizerFast,
+                          MBartTokenizer, MBartTokenizerFast,
+                          Seq2SeqTrainingArguments, set_seed)
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import is_offline_mode
 
 from tw_rouge import get_rouge
+from RL_Trainer import RLSeq2SeqTrainer
 
 logger = logging.getLogger(__name__)
 
@@ -305,6 +300,21 @@ def main():
             "`--source_prefix 'summarize: ' `"
         )
 
+    # Detecting last checkpoint.
+    last_checkpoint = None
+    if os.path.isdir(training_args.output_dir) and training_args.do_train and not training_args.overwrite_output_dir:
+        last_checkpoint = get_last_checkpoint(training_args.output_dir)
+        if last_checkpoint is None and len(os.listdir(training_args.output_dir)) > 0:
+            raise ValueError(
+                f"Output directory ({training_args.output_dir}) already exists and is not empty. "
+                "Use --overwrite_output_dir to overcome."
+            )
+        elif last_checkpoint is not None and training_args.resume_from_checkpoint is None:
+            logger.info(
+                f"Checkpoint detected, resuming training at {last_checkpoint}. To avoid this behavior, change "
+                "the `--output_dir` or add `--overwrite_output_dir` to train from scratch."
+            )
+
     # Set seed before initializing model.
     set_seed(training_args.seed)
 
@@ -390,7 +400,16 @@ def main():
 
     # Preprocessing the datasets.
     # We need to tokenize inputs and targets.
-    column_names = raw_datasets["train"].column_names
+    if training_args.do_train:
+        column_names = raw_datasets["train"].column_names
+    elif training_args.do_eval:
+        column_names = raw_datasets["validation"].column_names
+    elif training_args.do_predict:
+        column_names = raw_datasets["test"].column_names
+    else:
+        logger.info(
+            "There is nothing to do. Please pass `do_train`, `do_eval` and/or `do_predict`.")
+        return
 
     if isinstance(tokenizer, tuple(MULTILINGUAL_TOKENIZERS)):
         assert (
@@ -462,40 +481,62 @@ def main():
         model_inputs["labels"] = labels["input_ids"]
         return model_inputs
 
-    if "train" not in raw_datasets:
-        raise ValueError("--do_train requires a train dataset")
-    train_dataset = raw_datasets["train"]
-    if data_args.max_train_samples is not None:
-        max_train_samples = min(
-            len(train_dataset), data_args.max_train_samples)
-        train_dataset = train_dataset.select(range(max_train_samples))
-    with training_args.main_process_first(desc="train dataset map pre-processing"):
-        train_dataset = train_dataset.map(
-            preprocess_function,
-            batched=True,
-            num_proc=data_args.preprocessing_num_workers,
-            remove_columns=column_names,
-            load_from_cache_file=not data_args.overwrite_cache,
-            desc="Running tokenizer on train dataset",
-        )
+    if training_args.do_train:
+        if "train" not in raw_datasets:
+            raise ValueError("--do_train requires a train dataset")
+        train_dataset = raw_datasets["train"]
+        if data_args.max_train_samples is not None:
+            max_train_samples = min(
+                len(train_dataset), data_args.max_train_samples)
+            train_dataset = train_dataset.select(range(max_train_samples))
+        with training_args.main_process_first(desc="train dataset map pre-processing"):
+            train_dataset = train_dataset.map(
+                preprocess_function,
+                batched=True,
+                num_proc=data_args.preprocessing_num_workers,
+                remove_columns=column_names,
+                load_from_cache_file=not data_args.overwrite_cache,
+                desc="Running tokenizer on train dataset",
+            )
 
-    max_target_length = data_args.val_max_target_length
-    if "validation" not in raw_datasets:
-        raise ValueError("--do_eval requires a validation dataset")
-    eval_dataset = raw_datasets["validation"]
-    if data_args.max_eval_samples is not None:
-        max_eval_samples = min(
-            len(eval_dataset), data_args.max_eval_samples)
-        eval_dataset = eval_dataset.select(range(max_eval_samples))
-    with training_args.main_process_first(desc="validation dataset map pre-processing"):
-        eval_dataset = eval_dataset.map(
-            preprocess_function,
-            batched=True,
-            num_proc=data_args.preprocessing_num_workers,
-            remove_columns=column_names,
-            load_from_cache_file=not data_args.overwrite_cache,
-            desc="Running tokenizer on validation dataset",
-        )
+    if training_args.do_eval:
+        max_target_length = data_args.val_max_target_length
+        if "validation" not in raw_datasets:
+            raise ValueError("--do_eval requires a validation dataset")
+        eval_dataset = raw_datasets["validation"]
+        if data_args.max_eval_samples is not None:
+            max_eval_samples = min(
+                len(eval_dataset), data_args.max_eval_samples)
+            eval_dataset = eval_dataset.select(range(max_eval_samples))
+        with training_args.main_process_first(desc="validation dataset map pre-processing"):
+            eval_dataset = eval_dataset.map(
+                preprocess_function,
+                batched=True,
+                num_proc=data_args.preprocessing_num_workers,
+                remove_columns=column_names,
+                load_from_cache_file=not data_args.overwrite_cache,
+                desc="Running tokenizer on validation dataset",
+            )
+
+    if training_args.do_predict:
+        max_target_length = data_args.val_max_target_length
+        if "test" not in raw_datasets:
+            raise ValueError("--do_predict requires a test dataset")
+        predict_dataset = raw_datasets["test"]
+        if data_args.max_predict_samples is not None:
+            max_predict_samples = min(
+                len(predict_dataset), data_args.max_predict_samples)
+            predict_dataset = predict_dataset.select(
+                range(max_predict_samples))
+        with training_args.main_process_first(desc="prediction dataset map pre-processing"):
+            predict_dataset = predict_dataset.map(
+                preprocess_function,
+                batched=True,
+                num_proc=data_args.preprocessing_num_workers,
+                remove_columns=column_names,
+                load_from_cache_file=not data_args.overwrite_cache,
+                desc="Running tokenizer on prediction dataset",
+            )
 
     # Data collator
     label_pad_token_id = - \
@@ -508,6 +549,8 @@ def main():
     )
 
     # Metric
+    rouge = Rouge(stats=["f"])
+
     def postprocess_text(preds, labels):
         preds = [pred.strip() for pred in preds]
         labels = [label.strip() for label in labels]
@@ -535,7 +578,7 @@ def main():
         result = get_rouge(decoded_preds, decoded_labels)
         # result = rouge.get_scores(
         #     hyps=decoded_preds, refs=decoded_labels, avg=True)
-        result = {k: round(v['f'] * 100, 4) for k, v in result.items()}
+        result = {k: v['f'] * 100 for k, v in result.items()}
         prediction_lens = [np.count_nonzero(
             pred != tokenizer.pad_token_id) for pred in preds]
         result["gen_len"] = np.mean(prediction_lens)
@@ -554,111 +597,91 @@ def main():
         result['rouge_combined'] = combined_rouge
         return result
 
-    trainer = Seq2SeqTrainer(
+    # Initialize our Trainer
+    trainer = RLSeq2SeqTrainer(
         model=model,
         args=training_args,
-        eval_dataset=eval_dataset,
+        train_dataset=train_dataset if training_args.do_train else None,
+        eval_dataset=eval_dataset if training_args.do_eval else None,
         tokenizer=tokenizer,
         data_collator=data_collator,
-        compute_metrics=compute_metrics,
+        compute_metrics=compute_metrics if training_args.predict_with_generate else None,
     )
 
-    # Dataset -> torch
-    batch_size = 4
-    train_loader = DataLoader(train_dataset, batch_size=batch_size,
-                              shuffle=True, collate_fn=data_collator)
+    # Training
+    if training_args.do_train:
+        checkpoint = None
+        if training_args.resume_from_checkpoint is not None:
+            checkpoint = training_args.resume_from_checkpoint
+        elif last_checkpoint is not None:
+            checkpoint = last_checkpoint
+        train_result = trainer.train(resume_from_checkpoint=checkpoint)
+        trainer.save_model()  # Saves the tokenizer too for easy upload
 
-    # args
-    accumulation_step = 8
-    epochs = 10
-    eval_steps = 5000
+        metrics = train_result.metrics
+        max_train_samples = (
+            data_args.max_train_samples if data_args.max_train_samples is not None else len(
+                train_dataset)
+        )
+        metrics["train_samples"] = min(max_train_samples, len(train_dataset))
 
-    optimizer = AdamW(model.parameters(), lr=5e-5)
-    scheduler = get_cosine_schedule_with_warmup(
-        optimizer, num_warmup_steps=300 * accumulation_step, num_training_steps=epochs * len(train_loader))
+        trainer.log_metrics("train", metrics)
+        trainer.save_metrics("train", metrics)
+        trainer.save_state()
 
-    his_best = -1
-    for _ in range(epochs):
-        model.train()
-        for b_idx, batch in enumerate(tqdm(train_loader)):
-            # Keys: attention_mask, decoder_input_ids, input_ids, labels
-            # https://huggingface.co/docs/transformers/v4.24.0/en/main_classes/output#transformers.modeling_outputs.Seq2SeqLMOutput
-            for k in batch.keys():
-                batch[k] = batch[k].cuda()
-
-            out = model(**batch)
-            loss = PG(out.logits, batch['labels'], tokenizer)
-
-            loss /= accumulation_step
-            loss.backward()
-
-            if (b_idx + 1) % accumulation_step == 0 or (b_idx == len(train_loader) - 1):
-                optimizer.zero_grad(set_to_none=True)
-                optimizer.step()
-                for _ in range(accumulation_step):
-                    scheduler.step()
-
-            if (b_idx + 1) % eval_steps == 0:
-                model.eval()
-                with torch.no_grad():
-                    metric = evaluate(trainer, training_args,
-                                      data_args, eval_dataset)
-                    if metric['eval_rouge_combined'] > his_best:
-                        his_best = metric['eval_rouge_combined']
-                        print("Saving Model ...")
-                        model.save_pretrained(training_args.output_dir)
-                        tokenizer.save_pretrained(training_args.output_dir)
-                    model.train()
-
-
-def evaluate(trainer, training_args, data_args, eval_dataset):
+    # Evaluation
+    results = {}
     max_length = (
         training_args.generation_max_length
         if training_args.generation_max_length is not None
         else data_args.val_max_target_length
     )
     num_beams = data_args.num_beams if data_args.num_beams is not None else training_args.generation_num_beams
-    print("*** Evaluate ***")
-    metrics = trainer.evaluate(
-        max_length=max_length, num_beams=num_beams, metric_key_prefix="eval")
-    max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(
-        eval_dataset)
-    metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
+    if training_args.do_eval:
+        logger.info("*** Evaluate ***")
+        metrics = trainer.evaluate(
+            max_length=max_length, num_beams=num_beams, metric_key_prefix="eval")
+        max_eval_samples = data_args.max_eval_samples if data_args.max_eval_samples is not None else len(
+            eval_dataset)
+        metrics["eval_samples"] = min(max_eval_samples, len(eval_dataset))
 
-    trainer.log_metrics("eval", metrics)
-    trainer.save_metrics("eval", metrics)
-    return metrics
+        trainer.log_metrics("eval", metrics)
+        trainer.save_metrics("eval", metrics)
+
+    if training_args.do_predict:
+        logger.info("*** Predict ***")
+
+        predict_results = trainer.predict(
+            predict_dataset, metric_key_prefix="predict", max_length=max_length, num_beams=num_beams
+        )
+        metrics = predict_results.metrics
+        max_predict_samples = (
+            data_args.max_predict_samples if data_args.max_predict_samples is not None else len(
+                predict_dataset)
+        )
+        metrics["predict_samples"] = min(
+            max_predict_samples, len(predict_dataset))
+
+        trainer.log_metrics("predict", metrics)
+        trainer.save_metrics("predict", metrics)
+
+        if trainer.is_world_process_zero():
+            if training_args.predict_with_generate:
+                predictions = tokenizer.batch_decode(
+                    predict_results.predictions, skip_special_tokens=True, clean_up_tokenization_spaces=True
+                )
+                predictions = [pred.strip() for pred in predictions]
+                output_prediction_file = os.path.join(
+                    training_args.output_dir, "generated_predictions.txt")
+                with open(output_prediction_file, "w") as writer:
+                    writer.write("\n".join(predictions))
+
+    return results
 
 
-def PG(logits, labels, tokenizer, gamma=0.999, baseline=0.2):
-    all_policys = []
-    all_rewards = []
-    for logit, label_ids in zip(logits, labels):
-        actions = []
-        for idx, single_logit in enumerate(logit):
-            d = Categorical(logits=single_logit)
-            act = d.sample()
-            actions.append(act)
-            all_policys.append(d.log_prob(act).unsqueeze(0))
-            if actions[-1] == 1 or idx >= 30:
-                break
-        actions = tokenizer.decode(torch.tensor(actions).to(
-            'cuda'), skip_special_tokens=True, clean_up_tokenization_spaces=True)
-        label_ids = label_ids.detach().cpu().tolist()
-        label_ids = [l for l in label_ids if l > 0]
-        label_text = tokenizer.decode(
-            label_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
-        R = 0 if not actions else get_rouge(actions, label_text)["rouge-l"]["f"]
-        rewards = []
-        for _ in range(idx + 1):
-            # implement baseline = 0.2
-            rewards.insert(0, R - baseline)
-            R *= gamma
-        all_rewards.extend(rewards)
-    all_policys = torch.cat(all_policys)
-    all_rewards = torch.tensor(all_rewards).to('cuda')
-    loss = torch.sum(torch.mul(all_policys, all_rewards).mul(-1), -1)
-    return loss
+def _mp_fn(index):
+    # For xla_spawn (TPUs)
+    main()
 
 
 if __name__ == "__main__":
