@@ -1,5 +1,6 @@
-import json
 import argparse
+import json
+
 from tw_rouge import get_rouge
 
 
@@ -16,7 +17,7 @@ def main(args):
             line = json.loads(line)
             preds[line['id']] = line['title'].strip() + '\n'
 
-    keys =  refs.keys()
+    keys = refs.keys()
     refs = [refs[key] for key in keys]
     preds = [preds[key] for key in keys]
     print(json.dumps(get_rouge(preds, refs), indent=2))
