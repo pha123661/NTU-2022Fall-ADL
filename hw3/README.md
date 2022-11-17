@@ -14,5 +14,6 @@ Department: GINM11
 
 ## How to Train
 1.  ```bash
-    python train.py
+    ./Train_sum.sh
     ```
+2. The model weight will be located at `./Sum_ckpt`
