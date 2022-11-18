@@ -20,11 +20,11 @@ class RLSeq2SeqTrainer(Seq2SeqTrainer):
 
         return (loss, outputs) if return_outputs else loss
 
-    def _policy_gradient(self, logits, labels, gamma=0.999):
+    def _policy_gradient(self, logits, labels, gamma=0.9):
         '''
         Vanilla policy gradient
         '''
-        def get_award(prediction, label):
+        def get_reward(prediction, label):
             baseline = {
                 'rouge-1': 0.22,
                 'rouge-2': 0.085,
@@ -37,7 +37,7 @@ class RLSeq2SeqTrainer(Seq2SeqTrainer):
             for k, v in rouge_scores.items():
                 if k in baseline:
                     combined_rouge += v / baseline[k]
-                if k not in baseline:
+                else:
                     raise Exception(f"{k} not in get_rouge")
 
             return combined_rouge
@@ -48,32 +48,35 @@ class RLSeq2SeqTrainer(Seq2SeqTrainer):
         all_policys = []
         all_rewards = []
         for logit, label_ids in zip(logits, labels):
-            actions = []
+            generated_sequence = []
             for idx, single_logit in enumerate(logit):
-                d = Categorical(logits=single_logit)
-                act = d.sample()
-                actions.append(act)
-                all_policys.append(d.log_prob(act).unsqueeze(0))
-                if actions[-1] == 1 or idx >= 30:
+                word_distribution = Categorical(logits=single_logit)
+                next_word = word_distribution.sample()
+                generated_sequence.append(next_word)
+                all_policys.append(
+                    word_distribution.log_prob(next_word).unsqueeze(0))
+                if generated_sequence[-1] == self.tokenizer.eos_token_id or idx >= self.args.generation_max_length:
                     break
-            actions = torch.tensor(actions).to()
-            actions = self.tokenizer.decode(
-                actions, skip_special_tokens=True, clean_up_tokenization_spaces=True)
+            generated_sequence = torch.tensor(generated_sequence).to()
+            generated_sequence = self.tokenizer.decode(
+                generated_sequence, skip_special_tokens=True, clean_up_tokenization_spaces=True)
             label_ids = label_ids.detach().cpu().tolist()
             label_ids = [l for l in label_ids if l > 0]
             label_text = self.tokenizer.decode(
                 label_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
-            R = 0 if not actions else get_award(actions, label_text)
+            R = 0 if not generated_sequence else get_reward(
+                generated_sequence, label_text)
             rewards = deque()
             for _ in range(idx + 1):
                 rewards.appendleft(R)
                 R *= gamma
             all_rewards.extend(rewards)
+
         all_policys = torch.cat(all_policys)
+
         all_rewards = torch.tensor(all_rewards).to(device)
-        # standardize
         all_rewards = (all_rewards - all_rewards.mean()) / \
-            (all_rewards.std() + eps)
+            (all_rewards.std() + eps)  # standardize
         # \times -1 = maximization
         loss = torch.sum(-1 * all_policys * all_rewards, -1)
         return loss
