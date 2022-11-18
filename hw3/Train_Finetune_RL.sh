@@ -12,11 +12,13 @@ python RL_Summarization.py \
 --output_dir="./RL_fine_tune_ckpt" \
 --do_train \
 --do_eval \
---num_train_epochs=10 \
+--num_train_epochs=20 \
 --auto_find_batch_size \
 --gradient_accumulation_steps=4 \
 --learning_rate=1e-5 \
 --warmup_steps=300 \
+--optim=adafactor \
+--lr_scheduler_type=constant_with_warmup \
 --dataloader_num_workers=4 \
 \
 --evaluation_strategy="steps" \
