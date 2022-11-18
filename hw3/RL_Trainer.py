@@ -25,22 +25,25 @@ class RLSeq2SeqTrainer(Seq2SeqTrainer):
         Vanilla policy gradient
         '''
         def get_reward(prediction, label):
-            baseline = {
-                'rouge-1': 0.22,
-                'rouge-2': 0.085,
-                'rouge-l': 0.020,
-            }
+            try:
+                baseline = {
+                    'rouge-1': 0.22,
+                    'rouge-2': 0.085,
+                    'rouge-l': 0.020,
+                }
 
-            rouge_scores = get_rouge(prediction, label)
-            rouge_scores = {k: v['f'] for k, v in rouge_scores.items()}
-            combined_rouge = 0
-            for k, v in rouge_scores.items():
-                if k in baseline:
-                    combined_rouge += v / baseline[k]
-                else:
-                    raise Exception(f"{k} not in get_rouge")
+                rouge_scores = get_rouge(prediction, label)
+                rouge_scores = {k: v['f'] for k, v in rouge_scores.items()}
+                combined_rouge = 0
+                for k, v in rouge_scores.items():
+                    if k in baseline:
+                        combined_rouge += v / baseline[k]
+                    else:
+                        raise Exception(f"{k} not in get_rouge")
 
-            return combined_rouge
+                return combined_rouge
+            except ValueError:
+                return 0
 
         device = logits.device
         eps = 1e-6
@@ -64,7 +67,7 @@ class RLSeq2SeqTrainer(Seq2SeqTrainer):
             label_ids = [l for l in label_ids if l > 0]
             label_text = self.tokenizer.decode(
                 label_ids, skip_special_tokens=True, clean_up_tokenization_spaces=True)
-            R = 0 if not generated_sequence else get_reward(
+            R = 0 if generated_sequence == "" else get_reward(
                 generated_sequence, label_text)
             rewards = deque()
             for _ in range(idx + 1):
