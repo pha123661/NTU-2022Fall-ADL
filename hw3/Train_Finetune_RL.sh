@@ -2,6 +2,7 @@ python RL_Summarization.py \
 --model_name_or_path="./Sum_ckpt" \
 --cache_dir="./cache" \
 --num_beams=5 \
+--generation_max_length=20 \
 \
 --train_file="./data/train.json" \
 --validation_file="./data/public.json" \
