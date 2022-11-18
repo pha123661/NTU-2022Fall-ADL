@@ -2,7 +2,7 @@ python jsonl2json.py --input="${1}" --output="test_input.json"
 
 python Inference_sum.py \
 --model_name_or_path="./RL_ckpt" \
---num_beams=3 \
+--num_beams=5 \
 \
 --test_file="test_input.json" \
 --text_column="maintext" \
