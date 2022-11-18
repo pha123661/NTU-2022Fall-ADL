@@ -6,10 +6,10 @@ Department: GINM11
 ---
 
 ## Environment
-1. Place training data at `/data/`
+1. Place training data at `./data/`
 2. Transform the format of training and validation data
    ```bash
-   ./preprocess_training.sh
+   bash preprocess_training.sh
    ```
 3. Install dependencies
    ```bash
@@ -17,8 +17,22 @@ Department: GINM11
    ```
 
 
-## How to Train
+## MLE Supervised Fintuning
 1.  ```bash
-    ./Train_sum.sh
+    bash Train_sum.sh
     ```
-2. The model weight will be located at `./Sum_ckpt`
+2. The model weight will be located at `./Sum_ckpt/`
+
+## RL Fintuning from mT5
+1.  ```bash
+    bash Train_RL.sh
+    ```
+2. The model weight will be located at `./RL_from_scratch_ckpt/`
+
+## MLE Intermediate Fintuning from mT5 + RL Finetuning
+1.  ```bash
+    bash Train_sum.sh
+    bash Train_Finetune_RL.sh
+    ```
+2. The model weight will be located at `./RL_fine_tune_ckpt/`
+
