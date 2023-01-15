@@ -1,6 +1,6 @@
 # NTU-2022Fall-ADL
 
-Applied Deep Learning by Vivian Chen 陳縕儂
+Applied Deep Learning 深度學習之應用 by Vivian Chen 陳縕儂
 
 Passed strong baseline for all three assignments
 
