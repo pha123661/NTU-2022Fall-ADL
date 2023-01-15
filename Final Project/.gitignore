@@ -1,0 +1,7 @@
+NTU-stem-dataset
+NTU-stem-dataset-split
+__pycache__
+.ADL_FINAL
+output
+/resnet/log/
+/resnet/result/
