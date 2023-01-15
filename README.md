@@ -38,7 +38,7 @@ You can find the reports for more details.
       - Rouge 3: 0.2411 (+0.8%)
 - Final Project:
   - [Report](./Final%20Project/report.pdf)
-  - [Slide](./Final%20Project/slide.pdf)
+  - [Slide](./Final%20Project/Slide.pdf)
   - [Video(10min)](https://youtu.be/KgL-N_3OjYY)
   - Topic: MULTIMODAL PROMPT TUNING: REAL-WORLD USAGE ON NTU TREE CLASSIFICATION
   - Achieved 85% accuracy under 8-shot setting with CLIP-base
