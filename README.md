@@ -4,7 +4,7 @@ Applied Deep Learning 深度學習之應用 by Vivian Chen 陳縕儂
 
 Passed strong baseline for all three assignments
 
-⭐If you find my code usefull, please consider star this project!⭐
+⭐Please consider starring this project if you find my code useful.⭐
 
 ## Outline
 
