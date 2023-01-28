@@ -2,14 +2,13 @@
 
 Applied Deep Learning 深度學習之應用 by Vivian Chen 陳縕儂
 
-Passed strong baseline for all three assignments
+Surpassed strong baseline for all three assignments
 
 ⭐Please consider starring this project if you find my code useful.⭐
 
 ## Outline
 
-Homework topic, model I've used, and the validation score FYR.
-You can find the reports for more details.
+For more details, refer to the reports.
 
 - [HW1](./Applied%20Deep%20Learning%20Homework%201%20-%20Fall%20111.pdf): [Report](./hw1/report.pdf)
   - Intent Classification ← CNN+LSTM
