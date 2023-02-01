@@ -2,7 +2,7 @@
 
 Applied Deep Learning 深度學習之應用 by Vivian Chen 陳縕儂
 
-Surpassed strong baseline for all three assignments
+Surpassed strong baseline for all three assignments (Final grade: 100/100)
 
 ⭐Please consider starring this project if you find my code useful.⭐
 
